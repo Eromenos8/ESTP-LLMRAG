@@ -16,12 +16,12 @@ from streamlit_chatbox import *
 from streamlit_extras.bottom_container import bottom
 from streamlit_paste_button import paste_image_button
 
-from chatchat.settings import Settings
-from chatchat.server.callback_handler.agent_callback_handler import AgentStatus
-from chatchat.server.knowledge_base.model.kb_document_model import DocumentWithVSId
-from chatchat.server.knowledge_base.utils import format_reference
-from chatchat.server.utils import MsgType, get_config_models, get_config_platforms, get_default_llm
-from chatchat.webui_pages.utils import *
+from ...settings import Settings
+from ...server.callback_handler.agent_callback_handler import AgentStatus
+from ...server.knowledge_base.model.kb_document_model import DocumentWithVSId
+from ...server.knowledge_base.utils import format_reference
+from ...server.utils import MsgType, get_config_models, get_config_platforms, get_default_llm, api_address
+from ...webui_pages.utils import *
 
 
 chat_box = ChatBox(assistant_avatar=get_img_base64("chatchat_icon_blue_square_v2.png"))
@@ -103,14 +103,14 @@ def add_conv(name: str = ""):
     if not name:
         i = len(conv_names) + 1
         while True:
-            name = f"会话{i}"
+            name = f"Chat {i}"
             if name not in conv_names:
                 break
             i += 1
     if name in conv_names:
         sac.alert(
-            "创建新会话出错",
-            f"该会话名称 “{name}” 已存在",
+            "Error in creating new conversation",
+            f"Name exists “{name}”",
             color="error",
             closable=True,
         )
@@ -125,11 +125,11 @@ def del_conv(name: str = None):
 
     if len(conv_names) == 1:
         sac.alert(
-            "删除会话出错", f"这是最后一个会话，无法删除", color="error", closable=True
+            "Delete error", f"This is the last chat", color="error", closable=True
         )
     elif not name or name not in conv_names:
         sac.alert(
-            "删除会话出错", f"无效的会话名称：“{name}”", color="error", closable=True
+            "Delete error", f"Invalid name：“{name}”", color="error", closable=True
         )
     else:
         chat_box.del_chat_name(name)
@@ -168,31 +168,31 @@ def dialogue_page(
     # st.write(st.session_state)
     # st.write(chat_box.context)
 
-    @st.experimental_dialog("模型配置", width="large")
+    @st.experimental_dialog("model config", width="large")
     def llm_model_setting():
         # 模型
         cols = st.columns(3)
-        platforms = ["所有"] + list(get_config_platforms())
-        platform = cols[0].selectbox("选择模型平台", platforms, key="platform")
+        platforms = ["All"] + list(get_config_platforms())
+        platform = cols[0].selectbox("Choose model platform", platforms, key="platform")
         llm_models = list(
             get_config_models(
-                model_type="llm", platform_name=None if platform == "所有" else platform
+                model_type="llm", platform_name=None if platform == "All" else platform
             )
         )
         llm_models += list(
             get_config_models(
-                model_type="image2text", platform_name=None if platform == "所有" else platform
+                model_type="image2text", platform_name=None if platform == "All" else platform
             )
         )
-        llm_model = cols[1].selectbox("选择LLM模型", llm_models, key="llm_model")
+        llm_model = cols[1].selectbox("Choose LLM model", llm_models, key="llm_model")
         temperature = cols[2].slider("Temperature", 0.0, 1.0, key="temperature")
         system_message = st.text_area("System Message:", key="system_message")
         if st.button("OK"):
             rerun()
 
-    @st.experimental_dialog("重命名会话")
+    @st.experimental_dialog("Rename chat")
     def rename_conversation():
-        name = st.text_input("会话名称")
+        name = st.text_input("Chat name")
         if st.button("OK"):
             chat_box.change_chat_name(name)
             restore_session()
@@ -200,13 +200,13 @@ def dialogue_page(
             rerun()
 
     with st.sidebar:
-        tab1, tab2 = st.tabs(["工具设置", "会话设置"])
+        tab1, tab2 = st.tabs(["Tool Setting", "Chat setting"])
 
         with tab1:
             use_agent = st.checkbox(
-                "启用Agent", help="请确保选择的模型具备Agent能力", key="use_agent"
+                "Enable Agent", key="use_agent"
             )
-            output_agent = st.checkbox("显示 Agent 过程", key="output_agent")
+            output_agent = st.checkbox("Show Agent details", key="output_agent")
 
             # 选择工具
             tools = list_tools(api)
@@ -215,7 +215,7 @@ def dialogue_page(
                 # selected_tools = sac.checkbox(list(tools), format_func=lambda x: tools[x]["title"], label="选择工具",
                 # check_all=True, key="selected_tools")
                 selected_tools = st.multiselect(
-                    "选择工具",
+                    "Choose tools",
                     list(tools),
                     format_func=lambda x: tools[x]["title"],
                     key="selected_tools",
@@ -224,7 +224,7 @@ def dialogue_page(
                 # selected_tool = sac.buttons(list(tools), format_func=lambda x: tools[x]["title"], label="选择工具",
                 # key="selected_tool")
                 selected_tool = st.selectbox(
-                    "选择工具",
+                    "Choose tools",
                     tool_names,
                     format_func=lambda x: tools.get(x, {"title": "None"})["title"],
                     key="selected_tool",
@@ -242,7 +242,7 @@ def dialogue_page(
             # TODO: 需要更精细的控制控件
             tool_input = {}
             if not use_agent and len(selected_tools) == 1:
-                with st.expander("工具参数", True):
+                with st.expander("Tool param", True):
                     for k, v in tools[selected_tools[0]]["args"].items():
                         if choices := v.get("choices", v.get("enum")):
                             tool_input[k] = st.selectbox(v["title"], choices)
@@ -264,7 +264,6 @@ def dialogue_page(
             # files_upload = process_files(files=[uploaded_file]) if uploaded_file else None
             files_upload = None
 
-            # 用于图片对话、文生图的图片
             upload_image = None
             def on_upload_file_change():
                 if f := st.session_state.get("upload_image"):
@@ -274,11 +273,11 @@ def dialogue_page(
                     st.session_state["cur_image"] = (None, None)
                 st.session_state.pop("paste_image", None)
 
-            st.file_uploader("上传图片", ["bmp", "jpg", "jpeg", "png"],
+            st.file_uploader("Image upload", ["bmp", "jpg", "jpeg", "png"],
                                             accept_multiple_files=False,
                                             key="upload_image",
                                             on_change=on_upload_file_change)
-            paste_image = paste_image_button("黏贴图像", key="paste_image")
+            paste_image = paste_image_button("Paste image", key="paste_image")
             cur_image = st.session_state.get("cur_image", (None, None))
             if cur_image[1] is None and paste_image.image_data is not None:
                 name = hashlib.md5(paste_image.image_data.tobytes()).hexdigest()+".png"
@@ -301,22 +300,22 @@ def dialogue_page(
 
             conversation_name = sac.buttons(
                 conv_names,
-                label="当前会话：",
+                label="Current chat: ",
                 key="cur_conv_name",
                 # on_change=on_conv_change, # not work
             )
             chat_box.use_chat_name(conversation_name)
             conversation_id = chat_box.context["uid"]
-            if cols[0].button("新建", on_click=add_conv):
+            if cols[0].button("New", on_click=add_conv):
                 ...
-            if cols[1].button("重命名"):
+            if cols[1].button("Rename"):
                 rename_conversation()
-            if cols[2].button("删除", on_click=del_conv):
+            if cols[2].button("Remove", on_click=del_conv):
                 ...
 
     # Display chat messages from history on app rerun
     chat_box.output_messages()
-    chat_input_placeholder = "请输入对话内容，换行请使用Shift+Enter。"
+    chat_input_placeholder = "Please enter content. Shift+Enter for a new line"
 
     # def on_feedback(
     #         feedback,
@@ -353,11 +352,11 @@ def dialogue_page(
     # chat input
     with bottom():
         cols = st.columns([1, 0.2, 15,  1])
-        if cols[0].button(":gear:", help="模型配置"):
+        if cols[0].button(":gear:"):
             widget_keys = ["platform", "llm_model", "temperature", "system_message"]
             chat_box.context_to_session(include=widget_keys)
             llm_model_setting()
-        if cols[-1].button(":wastebasket:", help="清空对话"):
+        if cols[-1].button(":wastebasket:"):
             chat_box.reset_history()
             rerun()
         # with cols[1]:
@@ -393,7 +392,7 @@ def dialogue_page(
                     unsafe_allow_html=True,
                 )
 
-        chat_box.ai_say("正在思考...")
+        chat_box.ai_say("Inferencing...")
         text = ""
         started = False
 
@@ -427,7 +426,7 @@ def dialogue_page(
         params = dict(
             messages=messages,
             model=llm_model,
-            stream=stream, # TODO：xinference qwen-vl-chat 流式输出会出错，后续看更新
+            stream=stream,
             extra_body=extra_body,
         )
         if tools:
@@ -457,7 +456,7 @@ def dialogue_page(
                     elif d.status == AgentStatus.llm_start:
                         if not output_agent:
                             continue
-                        chat_box.insert_msg("正在解读工具输出结果...")
+                        chat_box.insert_msg("Resolving tool output...")
                         text = d.choices[0].delta.content or ""
                     elif d.status == AgentStatus.llm_new_token:
                         if not output_agent:
@@ -511,7 +510,7 @@ def dialogue_page(
                                     context,
                                     in_expander=True,
                                     state="complete",
-                                    title="参考资料",
+                                    title="Reference",
                                 )
                             )
                             chat_box.insert_msg("")
@@ -576,16 +575,16 @@ def dialogue_page(
         cols = st.columns(2)
         export_btn = cols[0]
         if cols[1].button(
-            "清空对话",
+            "Clear",
             use_container_width=True,
         ):
             chat_box.reset_history()
             rerun()
 
     export_btn.download_button(
-        "导出记录",
+        "Export record",
         "".join(chat_box.export2md()),
-        file_name=f"{now:%Y-%m-%d %H.%M}_对话记录.md",
+        file_name=f"{now:%Y-%m-%d %H.%M}_chat_record.md",
         mime="text/markdown",
         use_container_width=True,
     )

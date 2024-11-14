@@ -7,11 +7,10 @@ import typing as t
 
 import nltk
 
-from chatchat import __version__
-from chatchat.pydantic_settings_file import *
+from __init__ import __version__
+from pydantic_settings_file import *
 
 
-# chatchat 数据目录，必须通过环境变量设置。如未设置则自动使用当前目录。
 CHATCHAT_ROOT = Path(os.environ.get("CHATCHAT_ROOT", ".")).resolve()
 
 XF_MODELS_TYPES = {
@@ -24,97 +23,88 @@ XF_MODELS_TYPES = {
 
 class BasicSettings(BaseFileSettings):
     """
-    服务器基本配置信息
-    除 log_verbose/HTTPX_DEFAULT_TIMEOUT 修改后即时生效
-    其它配置项修改后都需要重启服务器才能生效，服务运行期间请勿修改
+    server basic config info
     """
 
     model_config = SettingsConfigDict(yaml_file=CHATCHAT_ROOT / "basic_settings.yaml")
 
     version: str = __version__
-    """生成该配置模板的项目代码版本，如这里的值与程序实际版本不一致，建议重建配置文件模板"""
 
     log_verbose: bool = False
-    """是否开启日志详细信息"""
 
     HTTPX_DEFAULT_TIMEOUT: float = 300
-    """httpx 请求默认超时时间（秒）。如果加载模型或对话较慢，出现超时错误，可以适当加大该值。"""
 
     # @computed_field
     @cached_property
     def PACKAGE_ROOT(self) -> Path:
-        """代码根目录"""
+
         return Path(__file__).parent
 
     # @computed_field
     @cached_property
     def DATA_PATH(self) -> Path:
-        """用户数据根目录"""
+
         p = CHATCHAT_ROOT / "data"
         return p
 
     # @computed_field
     @cached_property
     def IMG_DIR(self) -> Path:
-        """项目相关图片目录"""
+
         p = self.PACKAGE_ROOT / "img"
         return p
 
     # @computed_field
     @cached_property
     def NLTK_DATA_PATH(self) -> Path:
-        """nltk 模型存储路径"""
+
         p = self.PACKAGE_ROOT / "data/nltk_data"
         return p
 
     # @computed_field
     @cached_property
     def LOG_PATH(self) -> Path:
-        """日志存储路径"""
+
         p = self.DATA_PATH / "logs"
         return p
 
     # @computed_field
     @cached_property
     def MEDIA_PATH(self) -> Path:
-        """模型生成内容（图片、视频、音频等）保存位置"""
+
         p = self.DATA_PATH / "media"
         return p
 
     # @computed_field
     @cached_property
     def BASE_TEMP_DIR(self) -> Path:
-        """临时文件目录，主要用于文件对话"""
+
         p = self.DATA_PATH / "temp"
         (p / "openai_files").mkdir(parents=True, exist_ok=True)
         return p
 
     KB_ROOT_PATH: str = str(CHATCHAT_ROOT / "data/knowledge_base")
-    """知识库默认存储路径"""
+
 
     DB_ROOT_PATH: str = str(CHATCHAT_ROOT / "data/knowledge_base/info.db")
-    """数据库默认存储路径。如果使用sqlite，可以直接修改DB_ROOT_PATH；如果使用其它数据库，请直接修改SQLALCHEMY_DATABASE_URI。"""
+
 
     SQLALCHEMY_DATABASE_URI:str = "sqlite:///" + str(CHATCHAT_ROOT / "data/knowledge_base/info.db")
-    """知识库信息数据库连接URI"""
+
 
     OPEN_CROSS_DOMAIN: bool = False
-    """API 是否开启跨域"""
+
 
     DEFAULT_BIND_HOST: str = "0.0.0.0" if sys.platform != "win32" else "127.0.0.1"
-    """
-    各服务器默认绑定host。如改为"0.0.0.0"需要修改下方所有XX_SERVER的host
-    Windows 下 WEBUI 自动弹出浏览器时，如果地址为 "0.0.0.0" 是无法访问的，需要手动修改地址栏
-    """
+
 
     API_SERVER: dict = {"host": DEFAULT_BIND_HOST, "port": 7861, "public_host": "127.0.0.1", "public_port": 7861}
-    """API 服务器地址。其中 public_host 用于生成云服务公网访问链接（如知识库文档链接）"""
 
     WEBUI_SERVER: dict = {"host": DEFAULT_BIND_HOST, "port": 8501}
-    """WEBUI 服务器地址"""
+
 
     def make_dirs(self):
-        '''创建所有数据目录'''
+
         for p in [
             self.DATA_PATH,
             self.MEDIA_PATH,
@@ -128,42 +118,31 @@ class BasicSettings(BaseFileSettings):
 
 
 class KBSettings(BaseFileSettings):
-    """知识库相关配置"""
+
 
     model_config = SettingsConfigDict(yaml_file=CHATCHAT_ROOT / "kb_settings.yaml")
 
     DEFAULT_KNOWLEDGE_BASE: str = "samples"
-    """默认使用的知识库"""
 
     DEFAULT_VS_TYPE: t.Literal["faiss", "milvus", "zilliz", "pg", "es", "relyt", "chromadb"] = "faiss"
-    """默认向量库/全文检索引擎类型"""
 
     CACHED_VS_NUM: int = 1
-    """缓存向量库数量（针对FAISS）"""
 
     CACHED_MEMO_VS_NUM: int = 10
-    """缓存临时向量库数量（针对FAISS），用于文件对话"""
 
     CHUNK_SIZE: int = 750
-    """知识库中单段文本长度(不适用MarkdownHeaderTextSplitter)"""
 
     OVERLAP_SIZE: int = 150
-    """知识库中相邻文本重合长度(不适用MarkdownHeaderTextSplitter)"""
 
-    VECTOR_SEARCH_TOP_K: int = 3 # TODO: 与 tool 配置项重复
-    """知识库匹配向量数量"""
+    VECTOR_SEARCH_TOP_K: int = 3
 
     SCORE_THRESHOLD: float = 2.0
-    """知识库匹配相关度阈值，取值范围在0-2之间，SCORE越小，相关度越高，取到2相当于不筛选，建议设置在0.5左右"""
 
     DEFAULT_SEARCH_ENGINE: t.Literal["bing", "duckduckgo", "metaphor", "searx"] = "duckduckgo"
-    """默认搜索引擎"""
 
     SEARCH_ENGINE_TOP_K: int = 3
-    """搜索引擎匹配结题数量"""
 
     ZH_TITLE_ENHANCE: bool = False
-    """是否开启中文标题加强，以及标题增强的相关配置"""
 
     PDF_OCR_THRESHOLD: t.Tuple[float, float] = (0.6, 0.6)
     """
@@ -599,12 +578,9 @@ class ToolSettings(BaseFileSettings):
         # <your_prometheus_password>
         "password": "",
     }
-    '''
-    text2promql 使用建议
-    1、因大模型生成的 promql 可能与预期有偏差, 请务必在测试环境中进行充分测试、评估;
-    2、text2promql 与大模型在意图理解、metric 选择、promql 转换等方面的能力有关, 可切换不同大模型进行测试;
-    3、当前仅支持 单prometheus 查询, 后续考虑支持 多prometheus 查询.
-    '''
+
+
+
 
     url_reader: dict = {
         "use": False,

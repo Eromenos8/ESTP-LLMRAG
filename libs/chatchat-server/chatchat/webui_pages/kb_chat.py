@@ -8,14 +8,13 @@ import streamlit_antd_components as sac
 from streamlit_chatbox import *
 from streamlit_extras.bottom_container import bottom
 
-from chatchat.settings import Settings
-from chatchat.server.knowledge_base.utils import LOADER_DICT
-from chatchat.server.utils import get_config_models, get_config_platforms, get_default_llm, api_address
-from chatchat.webui_pages.dialogue.dialogue import (save_session, restore_session, rerun,
+from ..settings import Settings
+from ..server.knowledge_base.utils import LOADER_DICT
+from ..server.utils import get_config_models, get_config_platforms, get_default_llm, api_address
+from ..webui_pages.dialogue.dialogue import (save_session, restore_session, rerun,
                                                     get_messages_history, upload_temp_docs,
                                                     add_conv, del_conv, clear_conv)
-from chatchat.webui_pages.utils import *
-
+from ..webui_pages.utils import *
 
 chat_box = ChatBox(assistant_avatar=get_img_base64("chatchat_icon_blue_square_v2.png"))
 
@@ -50,31 +49,31 @@ def kb_chat(api: ApiRequest):
     # st.write(chat_box.cur_chat_name)
     # st.write(st.session_state)
 
-    @st.experimental_dialog("模型配置", width="large")
+    @st.experimental_dialog("Model configuration", width="large")
     def llm_model_setting():
         # 模型
         cols = st.columns(3)
-        platforms = ["所有"] + list(get_config_platforms())
-        platform = cols[0].selectbox("选择模型平台", platforms, key="platform")
+        platforms = ["All"] + list(get_config_platforms())
+        platform = cols[0].selectbox("Choose model platform", platforms, key="platform")
         llm_models = list(
             get_config_models(
-                model_type="llm", platform_name=None if platform == "所有" else platform
+                model_type="llm", platform_name=None if platform == "All" else platform
             )
         )
         llm_models += list(
             get_config_models(
-                model_type="image2text", platform_name=None if platform == "所有" else platform
+                model_type="image2text", platform_name=None if platform == "All" else platform
             )
         )
-        llm_model = cols[1].selectbox("选择LLM模型", llm_models, key="llm_model")
+        llm_model = cols[1].selectbox("Choose LLM model", llm_models, key="llm_model")
         temperature = cols[2].slider("Temperature", 0.0, 1.0, key="temperature")
         system_message = st.text_area("System Message:", key="system_message")
         if st.button("OK"):
             rerun()
 
-    @st.experimental_dialog("重命名会话")
+    @st.experimental_dialog("Rename Chat")
     def rename_conversation():
-        name = st.text_input("会话名称")
+        name = st.text_input("Chat name")
         if st.button("OK"):
             chat_box.change_chat_name(name)
             restore_session()
@@ -83,13 +82,13 @@ def kb_chat(api: ApiRequest):
 
     # 配置参数
     with st.sidebar:
-        tabs = st.tabs(["RAG 配置", "会话设置"])
+        tabs = st.tabs(["RAG config", "Chat config"])
         with tabs[0]:
-            dialogue_modes = ["知识库问答",
-                              "文件对话",
-                              "搜索引擎问答",
+            dialogue_modes = ["knowledge base chat",
+                              "File chat",
+                              "Search engine chat",
                               ]
-            dialogue_mode = st.selectbox("请选择对话模式：",
+            dialogue_mode = st.selectbox("Choose chat mode",
                                          dialogue_modes,
                                          key="dialogue_mode",
                                          )
@@ -101,38 +100,36 @@ def kb_chat(api: ApiRequest):
             #     prompt_templates_kb_list,
             #     key="prompt_name",
             # )
-            prompt_name="default"
-            history_len = st.number_input("历史对话轮数：", 0, 20, key="history_len")
-            kb_top_k = st.number_input("匹配知识条数：", 1, 20, key="kb_top_k")
+            prompt_name = "default"
+            history_len = st.number_input("number of chat in history", 0, 20, key="history_len")
+            kb_top_k = st.number_input("Matched file", 1, 20, key="kb_top_k")
             ## Bge 模型会超过1
-            score_threshold = st.slider("知识匹配分数阈值：", 0.0, 2.0, step=0.01, key="score_threshold")
-            return_direct = st.checkbox("仅返回检索结果", key="return_direct")
-
-
+            score_threshold = st.slider("Match threshold", 0.0, 2.0, step=0.01, key="score_threshold")
+            return_direct = st.checkbox("Only returns result", key="return_direct")
 
             def on_kb_change():
-                st.toast(f"已加载知识库： {st.session_state.selected_kb}")
+                st.toast(f"Loaded： {st.session_state.selected_kb}")
 
             with placeholder.container():
-                if dialogue_mode == "知识库问答":
+                if dialogue_mode == "knowledge base chat":
                     kb_list = [x["kb_name"] for x in api.list_knowledge_bases()]
                     selected_kb = st.selectbox(
-                        "请选择知识库：",
+                        "Choose knowledge base",
                         kb_list,
                         on_change=on_kb_change,
                         key="selected_kb",
                     )
-                elif dialogue_mode == "文件对话":
-                    files = st.file_uploader("上传知识文件：",
-                                            [i for ls in LOADER_DICT.values() for i in ls],
-                                            accept_multiple_files=True,
-                                            )
-                    if st.button("开始上传", disabled=len(files) == 0):
+                elif dialogue_mode == "File chat":
+                    files = st.file_uploader("Upload knowledge chat",
+                                             [i for ls in LOADER_DICT.values() for i in ls],
+                                             accept_multiple_files=True,
+                                             )
+                    if st.button("Upload", disabled=len(files) == 0):
                         st.session_state["file_chat_id"] = upload_temp_docs(files, api)
-                elif dialogue_mode == "搜索引擎问答":
+                elif dialogue_mode == "Search engine chat":
                     search_engine_list = list(Settings.tool_settings.search_internet["search_engine_config"])
                     search_engine = st.selectbox(
-                        label="请选择搜索引擎",
+                        label="Choose search engine",
                         options=search_engine_list,
                         key="search_engine",
                     )
@@ -149,33 +146,33 @@ def kb_chat(api: ApiRequest):
 
             conversation_name = sac.buttons(
                 conv_names,
-                label="当前会话：",
+                label="Current chat",
                 key="cur_conv_name",
                 on_change=on_conv_change,
             )
             chat_box.use_chat_name(conversation_name)
             conversation_id = chat_box.context["uid"]
-            if cols[0].button("新建", on_click=add_conv):
+            if cols[0].button("New", on_click=add_conv):
                 ...
-            if cols[1].button("重命名"):
+            if cols[1].button("Rename"):
                 rename_conversation()
-            if cols[2].button("删除", on_click=del_conv):
+            if cols[2].button("Delete", on_click=del_conv):
                 ...
 
     # Display chat messages from history on app rerun
     chat_box.output_messages()
-    chat_input_placeholder = "请输入对话内容，换行请使用Shift+Enter。"
+    chat_input_placeholder = "Input chat, Shift + Enter for a new line"
 
     llm_model = ctx.get("llm_model")
 
     # chat input
     with bottom():
-        cols = st.columns([1, 0.2, 15,  1])
-        if cols[0].button(":gear:", help="模型配置"):
+        cols = st.columns([1, 0.2, 15, 1])
+        if cols[0].button(":gear:"):
             widget_keys = ["platform", "llm_model", "temperature", "system_message"]
             chat_box.context_to_session(include=widget_keys)
             llm_model_setting()
-        if cols[-1].button(":wastebasket:", help="清空对话"):
+        if cols[-1].button(":wastebasket:"):
             chat_box.reset_history()
             rerun()
         # with cols[1]:
@@ -193,36 +190,37 @@ def kb_chat(api: ApiRequest):
             prompt_name=prompt_name,
             return_direct=return_direct,
         )
-    
+
         api_url = api_address(is_public=True)
-        if dialogue_mode == "知识库问答":
+        if dialogue_mode == "Knowledge base chat":
             client = openai.Client(base_url=f"{api_url}/knowledge_base/local_kb/{selected_kb}", api_key="NONE")
             chat_box.ai_say([
-                Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
-                f"正在查询知识库 `{selected_kb}` ...",
+                Markdown("...", in_expander=True, title="Match result", state="running", expanded=return_direct),
+                f"Querying`{selected_kb}` ...",
             ])
-        elif dialogue_mode == "文件对话":
+        elif dialogue_mode == "File chat":
             if st.session_state.get("file_chat_id") is None:
-                st.error("请先上传文件再进行对话")
+                st.error("Please upload files first")
                 st.stop()
-            knowledge_id=st.session_state.get("file_chat_id")
+            knowledge_id = st.session_state.get("file_chat_id")
             client = openai.Client(base_url=f"{api_url}/knowledge_base/temp_kb/{knowledge_id}", api_key="NONE")
             chat_box.ai_say([
-                Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
-                f"正在查询文件 `{st.session_state.get('file_chat_id')}` ...",
+                Markdown("...", in_expander=True, title="Match result", state="running", expanded=return_direct),
+                f"Querying `{st.session_state.get('file_chat_id')}` ...",
             ])
         else:
             client = openai.Client(base_url=f"{api_url}/knowledge_base/search_engine/{search_engine}", api_key="NONE")
             chat_box.ai_say([
-                Markdown("...", in_expander=True, title="知识库匹配结果", state="running", expanded=return_direct),
-                f"正在执行 `{search_engine}` 搜索...",
+                Markdown("...", in_expander=True, title="Match result", state="running", expanded=return_direct),
+                f"Searching with `{search_engine}`",
             ])
 
         text = ""
         first = True
 
         try:
-            for d in client.chat.completions.create(messages=messages, model=llm_model, stream=True, extra_body=extra_body):
+            for d in client.chat.completions.create(messages=messages, model=llm_model, stream=True,
+                                                    extra_body=extra_body):
                 if first:
                     chat_box.update_msg("\n\n".join(d.docs), element_index=0, streaming=False, state="complete")
                     chat_box.update_msg("", streaming=False)
@@ -231,7 +229,7 @@ def kb_chat(api: ApiRequest):
                 text += d.choices[0].delta.content or ""
                 chat_box.update_msg(text.replace("\n", "\n\n"), streaming=True)
             chat_box.update_msg(text, streaming=False)
-            # TODO: 搜索未配置API KEY时产生报错
+
         except Exception as e:
             st.error(e.body)
 
@@ -240,16 +238,16 @@ def kb_chat(api: ApiRequest):
         cols = st.columns(2)
         export_btn = cols[0]
         if cols[1].button(
-            "清空对话",
-            use_container_width=True,
+                "Clear",
+                use_container_width=True,
         ):
             chat_box.reset_history()
             rerun()
 
     export_btn.download_button(
-        "导出记录",
+        "Export",
         "".join(chat_box.export2md()),
-        file_name=f"{now:%Y-%m-%d %H.%M}_对话记录.md",
+        file_name=f"{now:%Y-%m-%d %H.%M}_chat_record.md",
         mime="text/markdown",
         use_container_width=True,
     )

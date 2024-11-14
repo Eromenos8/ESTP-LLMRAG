@@ -1,6 +1,3 @@
-# 该文件封装了对api.py的请求，可以被不同的webui使用
-# 通过ApiRequest和AsyncApiRequest支持同步/异步调用
-
 import base64
 import contextlib
 import json
@@ -12,9 +9,9 @@ from typing import *
 
 import httpx
 
-from chatchat.settings import Settings
-from chatchat.server.utils import api_address, get_httpx_client, set_httpx_config, get_default_embedding
-from chatchat.utils import build_logger
+from ..settings import Settings
+from ..server.utils import api_address, get_httpx_client, set_httpx_config, get_default_embedding
+from ..utils import build_logger
 
 
 logger = build_logger()
@@ -23,9 +20,6 @@ set_httpx_config()
 
 
 class ApiRequest:
-    """
-    api.py调用的封装（同步模式）,简化api调用方式
-    """
 
     def __init__(
         self,
@@ -114,9 +108,6 @@ class ApiRequest:
         response: contextlib._GeneratorContextManager,
         as_json: bool = False,
     ):
-        """
-        将httpx.stream返回的GeneratorContextManager转化为普通生成器
-        """
 
         async def ret_async(response, as_json):
             try:
@@ -137,7 +128,7 @@ class ApiRequest:
                                 chunk_cache = ""
                                 yield data
                             except Exception as e:
-                                msg = f"接口返回json错误： ‘{chunk}’。错误信息是：{e}。"
+                                msg = f"err in returned json： ‘{chunk}. Err info：{e}。"
                                 logger.error(f"{e.__class__.__name__}: {msg}")
 
                                 if chunk.startswith("data: "):
@@ -151,15 +142,15 @@ class ApiRequest:
                             # print(chunk, end="", flush=True)
                             yield chunk
             except httpx.ConnectError as e:
-                msg = f"无法连接API服务器，请确认 ‘api.py’ 已正常启动。({e})"
+                msg = f"Can not connect to api server。({e})"
                 logger.error(msg)
                 yield {"code": 500, "msg": msg}
             except httpx.ReadTimeout as e:
-                msg = f"API通信超时，请确认已启动FastChat与API服务（详见Wiki '5. 启动 API 服务或 Web UI'）。（{e}）"
+                msg = f"API communication overtime）。（{e}）"
                 logger.error(msg)
                 yield {"code": 500, "msg": msg}
             except Exception as e:
-                msg = f"API通信遇到错误：{e}"
+                msg = f"Err in api communication：{e}"
                 logger.error(f"{e.__class__.__name__}: {msg}")
                 yield {"code": 500, "msg": msg}
 
@@ -182,7 +173,7 @@ class ApiRequest:
                                 chunk_cache = ""
                                 yield data
                             except Exception as e:
-                                msg = f"接口返回json错误： ‘{chunk}’。错误信息是：{e}。"
+                                msg = f"Error in returned json： ‘{chunk}’。Details：{e}。"
                                 logger.error(f"{e.__class__.__name__}: {msg}")
 
                                 if chunk.startswith("data: "):
@@ -196,15 +187,15 @@ class ApiRequest:
                             # print(chunk, end="", flush=True)
                             yield chunk
             except httpx.ConnectError as e:
-                msg = f"无法连接API服务器，请确认 ‘api.py’ 已正常启动。({e})"
+                msg = f"Can not connect to json ({e})"
                 logger.error(msg)
                 yield {"code": 500, "msg": msg}
             except httpx.ReadTimeout as e:
-                msg = f"API通信超时，请确认已启动FastChat与API服务（详见Wiki '5. 启动 API 服务或 Web UI'）。（{e}）"
+                msg = f"API communication overtime（{e}）"
                 logger.error(msg)
                 yield {"code": 500, "msg": msg}
             except Exception as e:
-                msg = f"API通信遇到错误：{e}"
+                msg = f"Error in API communication：{e}"
                 logger.error(f"{e.__class__.__name__}: {msg}")
                 yield {"code": 500, "msg": msg}
 
@@ -219,17 +210,12 @@ class ApiRequest:
         as_json: bool = False,
         value_func: Callable = None,
     ):
-        """
-        转换同步或异步请求返回的响应
-        `as_json`: 返回json
-        `value_func`: 用户可以自定义返回值，该函数接受response或json
-        """
 
         def to_json(r):
             try:
                 return r.json()
             except Exception as e:
-                msg = "API未能返回正确的JSON。" + str(e)
+                msg = "Json incorrect" + str(e)
                 logger.error(f"{e.__class__.__name__}: {msg}")
                 return {"code": 500, "msg": msg, "data": None}
 
@@ -250,7 +236,7 @@ class ApiRequest:
             else:
                 return value_func(response)
 
-    # 服务器信息
+    # server info
     def get_server_configs(self, **kwargs) -> Dict:
         response = self.post("/server/configs", **kwargs)
         return self._get_response_value(response, as_json=True)
@@ -268,7 +254,7 @@ class ApiRequest:
         response = self.post("/server/get_prompt_template", json=data, **kwargs)
         return self._get_response_value(response, value_func=lambda r: r.text)
 
-    # 对话相关操作
+    # conversation related
     def chat_chat(
         self,
         query: str,
@@ -282,7 +268,7 @@ class ApiRequest:
         **kwargs,
     ):
         """
-        对应api.py/chat/chat接口
+        for api.py/chat/chat interface
         """
         data = {
             "query": query,
@@ -310,7 +296,7 @@ class ApiRequest:
         zh_title_enhance=Settings.kb_settings.ZH_TITLE_ENHANCE,
     ):
         """
-        对应api.py/knowledge_base/upload_temp_docs接口
+        for api.py/knowledge_base/upload_temp_docs interface
         """
 
         def convert_file(file, filename=None):
@@ -352,7 +338,7 @@ class ApiRequest:
         prompt_name: str = "default",
     ):
         """
-        对应api.py/chat/file_chat接口
+        for api.py/chat/file_chat interface
         """
         data = {
             "query": query,
@@ -374,13 +360,13 @@ class ApiRequest:
         )
         return self._httpx_stream2generator(response, as_json=True)
 
-    # 知识库相关操作
+    # knowledge base related operations
 
     def list_knowledge_bases(
         self,
     ):
         """
-        对应api.py/knowledge_base/list_knowledge_bases接口
+        for api.py/knowledge_base/list_knowledge_bases interface
         """
         response = self.get("/knowledge_base/list_knowledge_bases")
         return self._get_response_value(
@@ -394,7 +380,7 @@ class ApiRequest:
         embed_model: str = get_default_embedding(),
     ):
         """
-        对应api.py/knowledge_base/create_knowledge_base接口
+        for api.py/knowledge_base/create_knowledge_base interface
         """
         data = {
             "knowledge_base_name": knowledge_base_name,
@@ -413,7 +399,7 @@ class ApiRequest:
         knowledge_base_name: str,
     ):
         """
-        对应api.py/knowledge_base/delete_knowledge_base接口
+        for api.py/knowledge_base/delete_knowledge_base interface
         """
         response = self.post(
             "/knowledge_base/delete_knowledge_base",
@@ -426,7 +412,7 @@ class ApiRequest:
         knowledge_base_name: str,
     ):
         """
-        对应api.py/knowledge_base/list_files接口
+        for api.py/knowledge_base/list_files interface
         """
         response = self.get(
             "/knowledge_base/list_files",
@@ -446,7 +432,7 @@ class ApiRequest:
         metadata: dict = {},
     ) -> List:
         """
-        对应api.py/knowledge_base/search_docs接口
+        for api.py/knowledge_base/search_docs interface
         """
         data = {
             "query": query,
@@ -476,7 +462,7 @@ class ApiRequest:
         not_refresh_vs_cache: bool = False,
     ):
         """
-        对应api.py/knowledge_base/upload_docs接口
+        for api.py/knowledge_base/upload_docs interface
         """
 
         def convert_file(file, filename=None):
@@ -518,7 +504,7 @@ class ApiRequest:
         not_refresh_vs_cache: bool = False,
     ):
         """
-        对应api.py/knowledge_base/delete_docs接口
+        for api.py/knowledge_base/delete_docs interface
         """
         data = {
             "knowledge_base_name": knowledge_base_name,
@@ -535,7 +521,7 @@ class ApiRequest:
 
     def update_kb_info(self, knowledge_base_name, kb_info):
         """
-        对应api.py/knowledge_base/update_info接口
+        for api.py/knowledge_base/update_info interface
         """
         data = {
             "knowledge_base_name": knowledge_base_name,
@@ -560,7 +546,7 @@ class ApiRequest:
         not_refresh_vs_cache: bool = False,
     ):
         """
-        对应api.py/knowledge_base/update_docs接口
+        for api.py/knowledge_base/update_docs interface
         """
         data = {
             "knowledge_base_name": knowledge_base_name,
@@ -620,7 +606,7 @@ class ApiRequest:
         to_query: bool = False,
     ) -> List[List[float]]:
         """
-        对文本进行向量化，可选模型包括本地 embed_models 和支持 embeddings 的在线模型
+        vectorize txt
         """
         data = {
             "texts": texts,
@@ -667,7 +653,7 @@ class ApiRequest:
         tool_input: Dict = {},
     ):
         """
-        调用工具
+        call tools
         """
         data = {
             "name": name,
@@ -730,16 +716,4 @@ if __name__ == "__main__":
     api = ApiRequest()
     aapi = AsyncApiRequest()
 
-    # with api.chat_chat("你好") as r:
-    #     for t in r.iter_text(None):
-    #         print(t)
 
-    # r = api.chat_chat("你好", no_remote_api=True)
-    # for t in r:
-    #     print(t)
-
-    # r = api.duckduckgo_search_chat("室温超导最新研究进展", no_remote_api=True)
-    # for t in r:
-    #     print(t)
-
-    # print(api.list_knowledge_bases())

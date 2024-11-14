@@ -21,7 +21,7 @@ from typing import Dict, List
 
 from fastapi import FastAPI
 
-from chatchat.utils import build_logger
+from utils import build_logger
 
 
 logger = build_logger()
@@ -41,15 +41,15 @@ def run_api_server(
     started_event: mp.Event = None, run_mode: str = None
 ):
     import uvicorn
-    from chatchat.utils import (
+    from utils import (
         get_config_dict,
         get_log_file,
         get_timestamp_ms,
     )
 
-    from chatchat.settings import Settings
-    from chatchat.server.api_server.server_app import create_app
-    from chatchat.server.utils import set_httpx_config
+    from settings import Settings
+    from server.api_server.server_app import create_app
+    from server.utils import set_httpx_config
 
     logger.info(f"Api MODEL_PLATFORMS: {Settings.model_settings.MODEL_PLATFORMS}")
     set_httpx_config()
@@ -72,9 +72,9 @@ def run_api_server(
 def run_webui(
     started_event: mp.Event = None, run_mode: str = None
 ):
-    from chatchat.settings import Settings
-    from chatchat.server.utils import set_httpx_config
-    from chatchat.utils import get_config_dict, get_log_file, get_timestamp_ms
+    from settings import Settings
+    from server.utils import set_httpx_config
+    from utils import get_config_dict, get_log_file, get_timestamp_ms
 
     logger.info(f"Webui MODEL_PLATFORMS: {Settings.model_settings.MODEL_PLATFORMS}")
     set_httpx_config()
@@ -177,26 +177,24 @@ def dump_server_info(after_start=False, args=None):
 
     import langchain
 
-    from chatchat import __version__
-    from chatchat.settings import Settings
-    from chatchat.server.utils import api_address, webui_address
+    from settings import Settings
+    from server.utils import api_address, webui_address
 
     print("\n")
     print("=" * 30 + "Langchain-Chatchat Configuration" + "=" * 30)
-    print(f"操作系统：{platform.platform()}.")
-    print(f"python版本：{sys.version}")
-    print(f"项目版本：{__version__}")
-    print(f"langchain版本：{langchain.__version__}")
-    print(f"数据目录：{Settings.CHATCHAT_ROOT}")
+    print(f"OS：{platform.platform()}.")
+    print(f"python version：{sys.version}")
+    print(f"langchain version：{langchain.__version__}")
+    print(f"data dir：{Settings.CHATCHAT_ROOT}")
     print("\n")
 
-    print(f"当前使用的分词器：{Settings.kb_settings.TEXT_SPLITTER_NAME}")
+    print(f"tokenizer：{Settings.kb_settings.TEXT_SPLITTER_NAME}")
 
-    print(f"默认选用的 Embedding 名称： {Settings.model_settings.DEFAULT_EMBEDDING_MODEL}")
+    print(f"deafault Embedding： {Settings.model_settings.DEFAULT_EMBEDDING_MODEL}")
 
     if after_start:
         print("\n")
-        print(f"服务端运行信息：")
+        print(f"server runtime info：")
         if args.api:
             print(f"    Chatchat Api Server: {api_address()}")
         if args.webui:
@@ -209,13 +207,13 @@ async def start_main_server(args):
     import signal
     import time
 
-    from chatchat.utils import (
+    from utils import (
         get_config_dict,
         get_log_file,
         get_timestamp_ms,
     )
 
-    from chatchat.settings import Settings
+    from settings import Settings
 
     logging_conf = get_config_dict(
         "INFO",
@@ -358,7 +356,7 @@ def main(all, api, webui):
     sys.path.append(cwd)
     mp.freeze_support()
     print("cwd:" + cwd)
-    from chatchat.server.knowledge_base.migrate import create_tables
+    from server.knowledge_base.migrate import create_tables
 
     create_tables()
     if sys.version_info < (3, 10):

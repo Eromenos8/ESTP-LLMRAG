@@ -1,4 +1,4 @@
-# Description: 初始化数据库，包括创建表、导入数据、更新向量空间等操作
+
 from datetime import datetime
 import multiprocessing as mp
 import sys
@@ -7,8 +7,8 @@ from typing import Dict
 
 import click
 
-from chatchat.settings import Settings
-from chatchat.server.knowledge_base.migrate import (
+from settings import Settings
+from server.knowledge_base.migrate import (
     create_tables,
     folder2db,
     import_from_db,
@@ -16,8 +16,8 @@ from chatchat.server.knowledge_base.migrate import (
     prune_folder_files,
     reset_tables,
 )
-from chatchat.utils import build_logger
-from chatchat.server.utils import get_default_embedding
+from utils import build_logger
+from server.utils import get_default_embedding
 
 
 logger = build_logger()
@@ -56,12 +56,12 @@ def worker(args: dict):
             prune_folder_files(args.get("kb_name"))
 
         end_time = datetime.now()
-        print(f"总计用时\t：{end_time-start_time}\n")
+        print(f"Time used\t：{end_time-start_time}\n")
     except Exception as e:
         logger.exception(e)
 
 
-@click.command(help="知识库相关功能")
+@click.command(help="Knowledge base related commands")
 @click.option(
         "-r",
         "--recreate-vs",

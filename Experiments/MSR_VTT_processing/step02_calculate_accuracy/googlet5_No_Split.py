@@ -18,7 +18,6 @@ import seaborn as sns
 
 @dataclass
 class SimilarityResult:
-    """存储相似度计算结果的数据类"""
     video_files: List[str]
     similarity_scores: List[float]
     generated_texts: List[str]
@@ -26,7 +25,6 @@ class SimilarityResult:
     match_positions: List[int]
 
 class TextDataset(Dataset):
-    """文本数据集类，用于批处理"""
     def __init__(self, texts: List[str], tokenizer):
         self.texts = texts
         self.tokenizer = tokenizer
@@ -36,7 +34,7 @@ class TextDataset(Dataset):
 
     def __getitem__(self, idx):
         text = self.texts[idx]
-        # 为T5添加前缀
+        # Add prefix for T5
         text = f"encode text: {text}"
         encoding = self.tokenizer(
             text,
@@ -48,19 +46,16 @@ class TextDataset(Dataset):
         return {k: v.squeeze(0) for k, v in encoding.items()}
 
 class T5Analyzer:
-    """使用T5的深度分析器"""
     def __init__(self, model_name: str = 'google-t5/t5-base', batch_size: int = 16):
-        """
-        初始化T5分析器
+        # Initialize T5 analyzer
+        # Args:
+        #   model_name: T5 model name
+        #   batch_size: Batch size (smaller for T5 due to model size)
         
-        Args:
-            model_name: T5模型名称
-            batch_size: 批处理大小（T5较大，batch_size要小一些）
-        """
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
         
-        # 使用国内镜像加载模型
+        # Load model using domestic mirror
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name,
             mirror='https://hf-mirror.com'
@@ -75,7 +70,6 @@ class T5Analyzer:
         self.setup_logging()
 
     def setup_logging(self):
-        """设置日志配置"""
         log_file = f't5_analysis_{self.timestamp}.log'
         logging.basicConfig(
             level=logging.INFO,
@@ -88,20 +82,12 @@ class T5Analyzer:
         self.logger = logging.getLogger(__name__)
 
     def get_embeddings(self, model_output):
-        """
-        从T5输出获取嵌入向量
-        对所有decoder输出层取平均作为文本的表示
-        """
-        # 获取最后一层隐藏状态
         last_hidden_state = model_output.last_hidden_state
-        
-        # 对序列维度取平均，得到文本表示
         embeddings = torch.mean(last_hidden_state, dim=1)
         return embeddings
 
     @torch.no_grad()
     def encode_texts(self, texts: List[str], desc: str = "Encoding") -> torch.Tensor:
-        """批量编码文本"""
         dataset = TextDataset(texts, self.tokenizer)
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         embeddings = []
@@ -125,10 +111,10 @@ class T5Analyzer:
         video_id: str,
         k: int = 10
     ) -> SimilarityResult:
-        """查找最相似的前k个文本"""
+        # Find top k similar texts
         start_time = time.time()
 
-        # 为查询添加前缀
+        # Add prefix to query
         query = f"encode text: {query}"
         query_inputs = self.tokenizer(
             query,
@@ -163,19 +149,16 @@ class T5Analyzer:
         )
 
     def setup_analysis_dir(self, base_dir: str) -> str:
-        """创建分析结果目录"""
         analysis_dir = os.path.join(base_dir, 'analysis_results', f't5_analysis_{self.timestamp}')
         os.makedirs(analysis_dir, exist_ok=True)
         return analysis_dir
 
     def calculate_accuracy_at_k(self, results: List[Dict], k: int) -> float:
-        """计算前k个结果的准确率"""
         correct = sum(1 for r in results if any(pos < k for pos in r['match_positions']))
         return correct / len(results)
 
     def analyze_matching_pairs(self, video_text_map: Dict[str, str], 
                              df: pd.DataFrame) -> Dict:
-        """分析匹配对的统计信息"""
         video_ids = df['video_id'].unique()
         matching_stats = {
             'total_videos': len(video_ids),
@@ -194,7 +177,6 @@ class T5Analyzer:
         return matching_stats
 
     def plot_accuracy_curve(self, accuracies: List[float], output_path: str):
-        """绘制准确率曲线"""
         plt.figure(figsize=(12, 8))
         plt.plot(range(1, len(accuracies) + 1), accuracies, 'b-', marker='o')
         plt.xlabel('Top-K')
@@ -213,29 +195,28 @@ class T5Analyzer:
         plt.close()
 
     def analyze_queries(self, data_dir: str):
-        """分析查询结果"""
         analysis_dir = self.setup_analysis_dir(data_dir)
         
-        # 加载数据
+        # Load data
         df = pd.read_csv(os.path.join(data_dir, 'initial_processed_dataset.csv'))
         with open(os.path.join(data_dir, 'parsed_video_text_map.json'), 'r') as f:
             video_text_map = json.load(f)
 
-        # 分析匹配对统计
+        # Analyze matching pair statistics
         matching_stats = self.analyze_matching_pairs(video_text_map, df)
             
         texts = list(video_text_map.values())
         video_files = list(video_text_map.keys())
 
-        # 构建索引
-        self.logger.info("构建文本索引...")
+        # Build index
+        self.logger.info("Building text index...")
         text_embeddings = self.encode_texts(texts, "Encoding texts")
         index = faiss.IndexFlatIP(text_embeddings.shape[1])
         embeddings_np = text_embeddings.cpu().numpy()
         faiss.normalize_L2(embeddings_np)
         index.add(embeddings_np)
         
-        # 处理查询
+        # Process queries
         results = []
         total_queries = len(df)
         
@@ -262,11 +243,11 @@ class T5Analyzer:
             if (idx + 1) % 100 == 0:
                 print(f"Processed {idx + 1}/{total_queries} queries")
 
-        # 保存详细结果
+        # Save detailed results
         results_df = pd.DataFrame(results)
         results_df.to_csv(os.path.join(analysis_dir, 'detailed_results.csv'), index=False)
 
-        # 计算准确率
+        # Calculate accuracy
         accuracies = []
         accuracy_stats = {}
         for k in range(1, 11):
@@ -274,13 +255,13 @@ class T5Analyzer:
             accuracies.append(accuracy)
             accuracy_stats[f'top{k}_accuracy'] = accuracy
 
-        # 绘制准确率曲线
+        # Plot accuracy curve
         self.plot_accuracy_curve(
             accuracies,
             os.path.join(analysis_dir, 'accuracy_curve.png')
         )
 
-        # 生成分析报告
+        # Generate analysis report
         report = {
             'timestamp': self.timestamp,
             'total_queries': total_queries,
@@ -294,7 +275,7 @@ class T5Analyzer:
         with open(os.path.join(analysis_dir, 'analysis_report.json'), 'w') as f:
             json.dump(report, f, indent=2)
 
-        # 打印结果摘要
+        # Print result summary
         print("\nAnalysis Summary:")
         print(f"Total Queries: {total_queries}")
         print(f"Total Videos: {matching_stats['total_videos']}")
@@ -309,15 +290,14 @@ class T5Analyzer:
         return analysis_dir
 
 def main():
-    """主函数"""
     data_dir = "/root/autodl-tmp/dataprocessing/prepared_data"
-    analyzer = T5Analyzer(batch_size=16)  # T5模型batch_size设置小一些
+    analyzer = T5Analyzer(batch_size=16)  # Use smaller batch size for T5 model
     
-    # 设置随机种子
+    # Set random seed
     np.random.seed(42)
     torch.manual_seed(42)
     
-    # 运行分析
+    # Run analysis
     analysis_dir = analyzer.analyze_queries(data_dir)
     print(f"\nAnalysis results saved in: {analysis_dir}")
 
